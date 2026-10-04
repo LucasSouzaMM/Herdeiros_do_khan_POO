@@ -35,4 +35,4 @@ mvn test
 
 ## Autor
 
-Trabalho desenvolvido por Lucas Manoel para a disciplina de Programação Orientada a Objetos.
+Trabalho desenvolvido por Lucas Manoel e João Pedro Manhães para a disciplina de Programação Orientada a Objetos.
