@@ -24,7 +24,7 @@ As regras completas estão em [`regras.pdf`](regras.pdf). Uma versão em inglês
 
 ## Requisitos
 
-- Java 17
+- Java 25
 - Maven
 
 ## Como executar os testes
