@@ -1,0 +1,7 @@
+jogadores=2
+jogadorAtual=0
+coluna=1
+jogador0.nome=a
+jogador0.moedas=1
+jogador1.nome=f
+jogador1.moedas=1
