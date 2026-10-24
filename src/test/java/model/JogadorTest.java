@@ -7,21 +7,22 @@ import org.junit.Test;
 public class JogadorTest {
 
   @Test
-  public void guardaNomeEMoedas() {
-    Jogador j = new Jogador("Ana", 2);
-    assertEquals("Ana", j.getNome());
+  public void guardaHerdeiroEMoedas() {
+    Jogador j = new Jogador(Herdeiro.TOLUI, 2);
+    assertEquals(Herdeiro.TOLUI, j.getHerdeiro());
+    assertEquals("Tolui", j.getNome());
     assertEquals(2, j.getMoedas());
   }
 
   @Test
-  public void rejeitaNomeVazio() {
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new Jogador(" ", 1));
+  public void rejeitaHerdeiroNulo() {
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new Jogador(null, 1));
     assertTrue(e.getMessage().contains("Jogador.Jogador"));
   }
 
   @Test
   public void rejeitaMoedasNegativas() {
-    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new Jogador("Ana", -1));
+    IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new Jogador(Herdeiro.TOLUI, -1));
     assertTrue(e.getMessage().contains("Jogador.Jogador"));
   }
 }

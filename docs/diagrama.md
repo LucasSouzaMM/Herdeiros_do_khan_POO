@@ -4,6 +4,23 @@ This diagram follows the rules in [rules.md](rules.md). Section numbers such as 
 
 All classes are in the `model` package. `Jogo` is the only `public` class. The other classes are package-private. The GUI and the tests call only `Jogo`, and they send ids (`String`) and indexes (`int`), not model objects.
 
+## Status after iteration 2
+
+The diagram shows the full design. The code has only part of it.
+
+| Class | In the code now | Later |
+|---|---|---|
+| `Jogo` | Constructor, `sortear`, `ativarColuna`, `mover`, `encerrarTurno`, `paradaEm`, `salvar`, `carregar`, and the getters that the GUI uses (`getPosicao`, `getMovimentos`, `getPontos`, `getVizinhas` and others). | All other fields and methods. |
+| `Turno` | `jogador`, `movimentos`, and the column as an `int` (0 to 3). | `Coluna` object and all other fields. |
+| `Jogador` | `herdeiro`, `posicao`, and `moedas` as an `int`. | `tributos` (it replaces `moedas`) and all other fields. |
+| `Herdeiro` | All constants, `nome`, `cavalos`, `porNome`. | Heir abilities. |
+| `Mapa`, `Parada` | Stops, routes, coordinates, `distancia`, `paradaEm`, `contem`. | Provinces, yurts, counselors. |
+| `Cidade` | `nome`, `regiao`, `x`, `y`. | Treasures and conquest. |
+| `Regiao` | All constants. | |
+| Other classes and enums | | All. |
+
+The GUI is in the `view` package: `JanelaInicial`, `JanelaHerdeiros`, `JanelaTabuleiro` and `Imagens`. It calls only `Jogo` and draws each game image with `Graphics2D.drawImage`.
+
 ## Classes
 
 ```mermaid
@@ -26,10 +43,12 @@ classDiagram
         -int votosNeutra
         -int limiteVotos
         -int turnosRestantes
-        +Jogo(List~String~ nomes, List~Herdeiro~ herdeiros)
+        +Jogo(List~String~ herdeiros)
+        +sortear(int n)$ Jogo
         +escolherCartaSecreta(int jogador, int indice) void
-        +ativarColuna(int coluna) void
-        +mover(String paradaId) void
+        +ativarColuna(int jogador, int coluna) void
+        +mover(int jogador, String paradaId) void
+        +paradaEm(int x, int y) String
         +pegarTributo(String provinciaId) void
         +usarKhan(String destinoId) void
         +atacarCidade(String cidadeId) void
@@ -37,7 +56,9 @@ classDiagram
         +comprarMelhoria(int posicao, int coluna) void
         +entregarTesouros(List~TipoTesouro~ tesouros) void
         +usarBonus(Bonus bonus) void
-        +encerrarTurno() void
+        +encerrarTurno(int jogador) void
+        +salvar(Path arquivo) void
+        +carregar(Path arquivo)$ Jogo
         +isFimDeJogo() boolean
         +getVencedores() List~String~
         -darVoto(Jogador j, int votos) void
@@ -61,7 +82,6 @@ classDiagram
     }
 
     class Jogador {
-        -String nome
         -Herdeiro herdeiro
         -Parada posicao
         -Parada posicaoExtra
@@ -120,7 +140,8 @@ classDiagram
         -Map cidades
         -Parada karakorum
         +getParada(String id) Parada
-        +distanciaAteKarakorum(Parada p) int
+        +distancia(Parada a, Parada b) int
+        +paradaEm(int x, int y) Parada
         +yurtsNaRegiao(Jogador j, Regiao r) int
         +yurtsConectados(Jogador j) int
     }
@@ -128,13 +149,16 @@ classDiagram
     class Parada {
         -String id
         -Regiao regiao
-        -boolean dupla
+        -int[] pontos
+        -int raio
         -List~Parada~ vizinhas
         -List~Provincia~ provincias
         -List~Cidade~ cidades
         -List~Jogador~ yurts
         -List~Jogador~ peoes
         -Conselheiro conselheiro
+        +isDupla() boolean
+        +contem(int x, int y) boolean
         +podeTerminarAqui(Jogador j) boolean
         +podeConstruir() boolean
     }
@@ -152,6 +176,8 @@ classDiagram
     class Cidade {
         -String nome
         -Regiao regiao
+        -int x
+        -int y
         -List~TipoTesouro~ tesouros
         -boolean aberta
         -Jogador yurtCentral
@@ -235,11 +261,15 @@ classDiagram
     }
     class Herdeiro {
         <<enumeration>>
-        TOLUI
         ALTANI
-        CHAGATAI
         JOCHI
+        CHAGATAI
+        TOLUI
         OGEDEI
+        -String nome
+        -int[] cavalos
+        +cavalos(int coluna) int
+        +porNome(String nome)$ Herdeiro
     }
     class CartaAberta {
         <<enumeration>>
@@ -282,25 +312,20 @@ classDiagram
 ### Map: a graph with adjacency lists
 
 - The map is a graph. Each `Parada` is a node, and each route is an edge in the list `vizinhas`.
-- A double stop is one `Parada` with `dupla = true`. Thus, going through it costs 1 move (§7.1).
+- A double stop is one `Parada` with two medallions in `pontos`. Thus, going through it costs 1 move (§7.1).
 - Karakorum is a `Parada` with `regiao = null`. It holds all pawns and no yurts.
 - Each `Parada` also keeps lists of its adjacent `Provincia` and `Cidade` objects. The game uses them for "take tribute" (§7.2), "attack a city" (§8.1), and the secret cards Prefeito, Cidadão, and Bajulador.
 - `Mapa` keeps each kind of object in a `Map<String, T>`, with the id as the key. The GUI and the tests use these ids.
-- `distanciaAteKarakorum` and `yurtsConectados` are breadth-first searches on the graph. They serve the tie-break rule (§14.3) and the Viajante card.
+- `distancia` and `yurtsConectados` are breadth-first searches on the graph. `distancia` gives the cost of a move (§7.1), the tie-break rule (§14.3) and the Viajante card.
 - There is no graph library. Adjacency lists are enough for a map of this size.
 
-Put the map data in one text file, for example `src/main/resources/mapa.txt`. `Mapa` reads it at startup. The rulebook shows the map only as a picture, so the group must copy the data from the main board.
+The map data is in the constructor of `Mapa`, in Java code. The rulebook shows the map only as a picture, so the group copied the data from the photo of the main board (`src/main/resources/imagens/tabuleiro.jpg`, 2905 x 2919 pixels).
 
-```text
-# stops: id region double
-PARADA kiev1 RUSSIA false
-# edges between stops
-ROTA kiev1 moscou2
-# province: id tribute-type khan
-PROVINCIA p7 MOEDA true
-# which provinces a stop touches
-TOCA kiev1 p7
-```
+- 34 stops: 11 in each region and Karakorum. The ids are `r1` to `r11` (Russia), `p1` to `p11` (Persia), `c1` to `c11` (China) and `karakorum`.
+- 54 routes.
+- `pontos` has the center of each medallion in pixels of the photo. `raio` is the click area: 60 for a medallion, 220 for Karakorum. The GUI converts a click to these pixels and calls `Jogo.paradaEm`.
+- The 9 cities have a name and a position. Provinces are not in the map yet.
+- Run the game with `-Dmapa.debug=true` to draw the stops and the routes over the board.
 
 ### Game pieces: counters, not objects
 
@@ -335,7 +360,7 @@ Many rules depend on what happened in the current turn. `Jogo` makes a new `Turn
 These items come from the **[unclear]** marks in `rules.md`. Each one can change the diagram.
 
 - The names of treasure types 3 to 5 (`TipoTesouro`).
-- The base actions and the region color of each column (`Coluna` fields).
+- The base actions and the region color of each column (`Coluna` fields). The number of horses of each column is known: `Herdeiro.cavalos` has it for each heir.
 - The full ability of each heir (`Herdeiro`).
 - Where delivered treasures go. This diagram assumes that `entregarTesouros` puts them back in `pilhaTesouros`.
 - The positions of the coin and sword icons in the upgrade area (`AreaMelhorias.reporComKhan`).
