@@ -1,0 +1,10 @@
+jogadores=2
+jogadorAtual=0
+coluna=0
+movimentos=1
+jogador0.herdeiro=Chagatai
+jogador0.moedas=1
+jogador0.posicao=p9
+jogador1.herdeiro=Altani
+jogador1.moedas=1
+jogador1.posicao=c1

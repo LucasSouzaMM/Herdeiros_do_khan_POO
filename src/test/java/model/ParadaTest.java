@@ -25,4 +25,12 @@ public class ParadaTest {
         assertTrue(p.contem(300, 205));
         assertFalse(p.contem(200, 200));
     }
+
+    @Test
+    public void capacidadeDeYurts() {
+        Mapa mapa = new Mapa();
+        assertEquals(0, mapa.getParada(Mapa.KARAKORUM).getCapacidadeYurts());
+        assertEquals(1, mapa.getParada("r9").getCapacidadeYurts());
+        assertEquals(2, mapa.getParada("r11").getCapacidadeYurts());
+    }
 }

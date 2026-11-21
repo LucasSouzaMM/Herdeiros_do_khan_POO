@@ -8,14 +8,13 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.IOException;
 
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
-import model.Jogo;
+import controller.Controlador;
 
 // RF05: primeira janela. Começa uma nova partida ou continua uma partida salva.
 public class JanelaInicial extends JFrame {
@@ -63,17 +62,11 @@ public class JanelaInicial extends JFrame {
                 painel.repaint();
                 return;
             }
-            try {
-                Jogo jogo = Jogo.carregar(escolha.getSelectedFile().toPath());
-                System.out.println("Partida carregada de " + escolha.getSelectedFile() + ".");
+            aviso = Controlador.getInstance().carregar(escolha.getSelectedFile().toPath());
+            if (aviso == null) {
                 dispose();
-                new JanelaTabuleiro(jogo);
-            } catch (IllegalArgumentException | IllegalStateException ex) {
-                System.out.println(ex.getMessage());
-                aviso = "Arquivo inválido: " + escolha.getSelectedFile().getName();
-            } catch (IOException ex) {
-                System.out.println("Erro em JanelaInicial.Continuar: não foi possível ler o arquivo (" + ex.getMessage() + ").");
-                aviso = "Não foi possível ler o arquivo " + escolha.getSelectedFile().getName();
+                new JanelaTabuleiro();
+                return;
             }
             painel.repaint();
         }

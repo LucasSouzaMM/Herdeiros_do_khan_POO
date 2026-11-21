@@ -1,5 +1,8 @@
 package view;
 
+import static model.ObservadoIF.EVENTO;
+import static model.ObservadoIF.HERDEIROS;
+
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -21,13 +24,18 @@ import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 
-import model.Jogo;
+import controller.Controlador;
+import model.ObservadoIF;
+import model.ObservadorIF;
 
 // RF06, RF07: escolha dos herdeiros. A ordem em que eles são marcados é a ordem dos jogadores.
-class JanelaHerdeiros extends JFrame {
+// Observer (cap. 17): a janela se inscreve pelo controlador, lê os herdeiros uma vez (grupo 1) e, quando o Model
+// avisa que a partida começou, troca a si mesma pela janela do tabuleiro.
+class JanelaHerdeiros extends JFrame implements ObservadorIF {
     private static final int LARGURA = 420, ALTURA = 229, MARGEM = 10; // cada cartela, na proporção da imagem
 
-    private final List<String> herdeiros = Jogo.getHerdeiros();
+    private final Controlador ctrl = Controlador.getInstance();
+    private final List<String> herdeiros;
     private final List<String> escolhidos = new ArrayList<>();
     private final List<JCheckBox> caixas = new ArrayList<>();
     private final JRadioButton sortear = new JRadioButton("Sortear herdeiros");
@@ -36,6 +44,7 @@ class JanelaHerdeiros extends JFrame {
 
     JanelaHerdeiros() {
         super("Herdeiros do Khan - Herdeiros");
+        herdeiros = ctrl.registra(this).get(HERDEIROS);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setResizable(false);
         painel.setLayout(null);
@@ -76,6 +85,15 @@ class JanelaHerdeiros extends JFrame {
         setVisible(true);
     }
 
+    // Observer: a partida começou (pelo botão Jogar). Esta janela sai e não recebe mais avisos.
+    @Override
+    public void notify(ObservadoIF observado) {
+        if (observado.get(EVENTO) != ObservadoIF.Evento.PARTIDA) return;
+        ctrl.remove(this);
+        dispose();
+        new JanelaTabuleiro();
+    }
+
     private static int x(int i) {
         return MARGEM + (i % 3) * (LARGURA + MARGEM);
     }
@@ -111,18 +129,10 @@ class JanelaHerdeiros extends JFrame {
     private class Jogar implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
-            Jogo jogo;
-            try {
-                jogo = sortear.isSelected() ? Jogo.sortear((Integer) numero.getSelectedItem()) : new Jogo(escolhidos);
-            } catch (IllegalArgumentException ex) {
-                System.out.println(ex.getMessage()); // G4: na janela, nada acontece
-                return;
-            }
-            StringBuilder ordem = new StringBuilder("Partida criada. Ordem dos jogadores:");
-            for (int i = 0; i < jogo.getNumeroJogadores(); i++) ordem.append(' ').append(i + 1).append(". ").append(jogo.getNome(i));
-            System.out.println(ordem);
-            dispose();
-            new JanelaTabuleiro(jogo);
+            // G4: com erro, nada acontece na janela (o erro vai para o terminal). Sem erro, o Model avisa PARTIDA
+            // e o notify abre o tabuleiro.
+            if (sortear.isSelected()) ctrl.sortear((Integer) numero.getSelectedItem());
+            else ctrl.novaPartida(escolhidos);
         }
     }
 

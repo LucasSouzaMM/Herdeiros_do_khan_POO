@@ -3,6 +3,9 @@ package model;
 import static model.Regiao.CHINA;
 import static model.Regiao.PERSIA;
 import static model.Regiao.RUSSIA;
+import static model.Tributo.ESPADA;
+import static model.Tributo.MOEDA;
+import static model.Tributo.YURT;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -21,6 +24,9 @@ class Mapa {
 
     private final Map<String, Parada> paradas = new LinkedHashMap<>();
     private final List<Cidade> cidades = new ArrayList<>();
+    private final Map<String, Provincia> provincias = new LinkedHashMap<>();
+    private final List<LocalKhan> locaisKhan = new ArrayList<>();
+    private final List<Conselheiro> conselheiros = new ArrayList<>();
 
     Mapa() {
         parada(KARAKORUM, null, 220, 1450, 1300);
@@ -124,15 +130,112 @@ class Mapa {
         rota("c9", "c11");
         rota("c10", "c11");
 
-        cidades.add(new Cidade("Kiev", RUSSIA, 300, 390));
-        cidades.add(new Cidade("Moscou", RUSSIA, 1080, 620));
-        cidades.add(new Cidade("Sarai", RUSSIA, 1720, 420));
-        cidades.add(new Cidade("Samarcanda", PERSIA, 800, 1400));
-        cidades.add(new Cidade("Bagdá", PERSIA, 260, 1700));
-        cidades.add(new Cidade("Cabul", PERSIA, 1270, 2030));
-        cidades.add(new Cidade("Pequim", CHINA, 2090, 1480));
-        cidades.add(new Cidade("Kaesong", CHINA, 2530, 820));
-        cidades.add(new Cidade("Cantão", CHINA, 2460, 2220));
+        cidade("Kiev", RUSSIA, 300, 390, "r1", "r2", "r3");
+        cidade("Moscou", RUSSIA, 1080, 620, "r5", "r6", "r7");
+        cidade("Sarai", RUSSIA, 1720, 420, "r8", "r9", "r10");
+        cidade("Samarcanda", PERSIA, 800, 1400, "p2", "p3", "p4");
+        cidade("Bagdá", PERSIA, 260, 1700, "p5", "p6", "p7");
+        cidade("Cabul", PERSIA, 1270, 2030, "p9", "p10", "p11");
+        cidade("Pequim", CHINA, 2090, 1480, "c4", "c5", "c6");
+        cidade("Kaesong", CHINA, 2530, 820, "c1", "c2", "c3");
+        cidade("Cantão", CHINA, 2460, 2220, "c9", "c10", "c11");
+
+        // Províncias (§7.2): o ícone do tributo e as paradas na borda da área entre as rotas.
+        provincia("t1", YURT, 615, 420, "r1", "r3", "p1", "r5");                    // entre Kiev e Moscou
+        provincia("t2", ESPADA, 857, 355, "r1", "r4", "r6", "r5");                  // acima de Moscou
+        provincia("t3", MOEDA, 790, 940, "p1", "r5", "r7", "p2");                   // abaixo de Moscou
+        provincia("t4", YURT, 1240, 920, "r7", "r6", "r9", KARAKORUM, "p4", "p2");  // acima de Karakorum, à esquerda
+        provincia("t5", MOEDA, 1958, 753, "r9", "r10", "r11", KARAKORUM);           // abaixo de Sarai
+        provincia("t6", ESPADA, 2162, 1050, "r11", "c1", "c3", "c4", KARAKORUM);    // entre Karakorum e Kaesong
+        provincia("t7", ESPADA, 517, 1204, "p1", "p2", "p3", "p5");                 // acima de Samarcanda
+        provincia("t8", MOEDA, 604, 1652, "p3", "p4", "p5", "p6", "p8", "p9");      // entre Bagdá e Samarcanda
+        provincia("t9", YURT, 1510, 1610, KARAKORUM, "p4", "p9", "c5", "c4");       // abaixo de Karakorum
+        provincia("t10", ESPADA, 1673, 1910, "p9", "p10", "c8", "c5");              // entre Cabul e Pequim
+        provincia("t11", MOEDA, 2383, 1555, "c3", "c4", "c6", "c7", "c9");          // à direita de Pequim
+        provincia("t12", YURT, 2055, 1828, "c5", "c6", "c8", "c9", "c10");          // abaixo de Pequim
+
+        // Províncias do Khan (§7.3): a cabeça do Khan e as 3 províncias apontadas pelas suas setas.
+        localKhan(624, 592, "t1", "t2", "t3");    // Rússia, ao lado de Kiev
+        localKhan(1748, 902, "t4", "t5", "t6");   // Rússia, abaixo de Sarai
+        localKhan(803, 1730, "t7", "t8", "t9");   // Pérsia, ao lado de Bagdá
+        localKhan(2128, 2055, "t10", "t11", "t12"); // China, abaixo de Pequim
+
+        // Conselheiros (regras, p. 13): as 6 paradas duplas pedem 2 tesouros iguais ou 3 quaisquer (1 voto);
+        // Karakorum pede 1 ferro, 1 pele e 1 boi, como na peça impressa no tabuleiro (2 votos).
+        conselheiro("r4", Conselheiro.PAR, 1, Tesouro.SEDA);
+        conselheiro("r11", Conselheiro.PAR, 1, Tesouro.FERRO);
+        conselheiro("p1", Conselheiro.PAR, 1, Tesouro.PELE);
+        conselheiro("p8", Conselheiro.PAR, 1, Tesouro.ESPECIARIA);
+        conselheiro("c7", Conselheiro.PAR, 1, Tesouro.BOI);
+        conselheiro("c8", Conselheiro.QUAISQUER, 1);
+        conselheiro(KARAKORUM, Conselheiro.TIPOS, 2, Tesouro.FERRO, Tesouro.PELE, Tesouro.BOI);
+    }
+
+    // A cidade e as 3 paradas do anel em volta dela.
+    private void cidade(String nome, Regiao regiao, int x, int y, String... adjacentes) {
+        List<Parada> ps = new ArrayList<>();
+        for (String a : adjacentes) ps.add(getParada(a));
+        cidades.add(new Cidade(nome, regiao, x, y, ps));
+    }
+
+    private void provincia(String id, Tributo tipo, int x, int y, String... adjacentes) {
+        List<Parada> ps = new ArrayList<>();
+        for (String a : adjacentes) ps.add(getParada(a));
+        provincias.put(id, new Provincia(id, tipo, x, y, ps));
+    }
+
+    private void conselheiro(String parada, int pedido, int votos, Tesouro... tipos) {
+        conselheiros.add(new Conselheiro(getParada(parada), pedido, List.of(tipos), votos));
+    }
+
+    private void localKhan(int x, int y, String... ids) {
+        List<Provincia> ps = new ArrayList<>();
+        for (String id : ids) ps.add(getProvincia(id));
+        locaisKhan.add(new LocalKhan(x, y, ps));
+    }
+
+    Provincia getProvincia(String id) {
+        Provincia p = provincias.get(id);
+        if (p == null)
+            throw new IllegalArgumentException("Erro em Mapa.getProvincia: a província " + id + " não existe.");
+        return p;
+    }
+
+    Collection<Provincia> getProvincias() {
+        return provincias.values();
+    }
+
+    /** A província cujo ícone contém o ponto (x, y) da imagem do tabuleiro, ou null. */
+    Provincia provinciaEm(int x, int y) {
+        for (Provincia p : provincias.values())
+            if (p.contem(x, y)) return p;
+        return null;
+    }
+
+    List<Conselheiro> getConselheiros() {
+        return conselheiros;
+    }
+
+    Conselheiro getConselheiro(String parada) {
+        for (Conselheiro c : conselheiros)
+            if (c.getParada().getId().equals(parada)) return c;
+        throw new IllegalArgumentException("Erro em Mapa.getConselheiro: a parada " + parada + " não tem conselheiro.");
+    }
+
+    List<LocalKhan> getLocaisKhan() {
+        return locaisKhan;
+    }
+
+    /** Índice da província do Khan cuja cabeça contém o ponto (x, y), ou -1. */
+    int localKhanEm(int x, int y) {
+        for (int i = 0; i < locaisKhan.size(); i++)
+            if (locaisKhan.get(i).contem(x, y)) return i;
+        return -1;
+    }
+
+    /** §5: cada província começa com 1 peça de tributo. */
+    void prepararTributos() {
+        for (Provincia p : provincias.values()) p.setPecas(1);
     }
 
     private void parada(String id, Regiao regiao, int raio, int... pontos) {
@@ -180,5 +283,11 @@ class Mapa {
 
     List<Cidade> getCidades() {
         return cidades;
+    }
+
+    Cidade getCidade(String nome) {
+        for (Cidade c : cidades)
+            if (c.nome().equals(nome)) return c;
+        throw new IllegalArgumentException("Erro em Mapa.getCidade: a cidade " + nome + " não existe.");
     }
 }

@@ -10,6 +10,7 @@ class Parada {
     private final int[] pontos; // centro de cada medalhão na imagem do tabuleiro: x1, y1[, x2, y2]
     private final int raio;
     private final List<Parada> vizinhas = new ArrayList<>();
+    private final List<Jogador> yurts = new ArrayList<>(); // donos dos yurts construídos aqui (regras, p. 11)
 
     Parada(String id, Regiao regiao, int raio, int... pontos) {
         this.id = id;
@@ -49,6 +50,20 @@ class Parada {
 
     List<Parada> getVizinhas() {
         return vizinhas;
+    }
+
+    List<Jogador> getYurts() {
+        return yurts;
+    }
+
+    /** Regras, p. 11: 1 yurt por parada, 2 numa parada dupla e nenhum em Karakorum (a única sem região). */
+    int getCapacidadeYurts() {
+        if (regiao == null) return 0;
+        return isDupla() ? 2 : 1;
+    }
+
+    boolean temYurtDe(Jogador j) {
+        return yurts.contains(j);
     }
 
     boolean contem(int x, int y) {

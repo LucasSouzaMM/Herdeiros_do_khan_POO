@@ -25,4 +25,16 @@ public class JogadorTest {
     IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new Jogador(Herdeiro.TOLUI, -1));
     assertTrue(e.getMessage().contains("Jogador.Jogador"));
   }
+
+  @Test
+  public void guardaPecasDeTributo() {
+    Jogador j = new Jogador(Herdeiro.TOLUI, 1);
+    j.ganhar(Tributo.MOEDA);
+    j.ganhar(Tributo.ESPADA);
+    j.ganhar(Tributo.ESPADA);
+    assertEquals(2, j.getMoedas());
+    assertEquals(2, j.getTributos(Tributo.MOEDA));
+    assertEquals(2, j.getTributos(Tributo.ESPADA));
+    assertEquals(0, j.getTributos(Tributo.YURT));
+  }
 }

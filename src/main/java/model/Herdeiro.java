@@ -1,19 +1,28 @@
 package model;
 
-// Cavalos das colunas vermelha, verde, amarela e branca, lidos da cartela de cada herdeiro.
+// Ações das colunas vermelha, verde e amarela, lidas da cartela de cada herdeiro: cavalos, punhos
+// e a coluna que move o Khan. A coluna branca é igual para todos: 2 cavalos, Khan e reativação das outras
+// colunas. A moeda virtual de algumas colunas só vale para as melhorias (4ª iteração).
 enum Herdeiro {
-    ALTANI("Altani", 1, 2, 1, 2),
-    JOCHI("Jochi", 1, 1, 2, 2),
-    CHAGATAI("Chagatai", 1, 1, 2, 2),
-    TOLUI("Tolui", 1, 2, 1, 2),
-    OGEDEI("Ogedei", 2, 1, 1, 2);
+    ALTANI("Altani", new int[] {1, 2, 1}, new int[] {2, 1, 1}, 0),
+    JOCHI("Jochi", new int[] {1, 1, 2}, new int[] {1, 2, 1}, 1),
+    CHAGATAI("Chagatai", new int[] {1, 1, 2}, new int[] {2, 1, 1}, 0),
+    TOLUI("Tolui", new int[] {1, 2, 1}, new int[] {1, 1, 2}, 2),
+    OGEDEI("Ogedei", new int[] {2, 1, 1}, new int[] {1, 1, 2}, 2);
+
+    static final int BRANCA = 3;
+    private static final int CAVALOS_BRANCA = 2;
 
     private final String nome;
     private final int[] cavalos;
+    private final int[] punhos;
+    private final int colunaKhan;
 
-    Herdeiro(String nome, int... cavalos) {
+    Herdeiro(String nome, int[] cavalos, int[] punhos, int colunaKhan) {
         this.nome = nome;
         this.cavalos = cavalos;
+        this.punhos = punhos;
+        this.colunaKhan = colunaKhan;
     }
 
     String getNome() {
@@ -21,7 +30,16 @@ enum Herdeiro {
     }
 
     int cavalos(int coluna) {
-        return cavalos[coluna];
+        return coluna == BRANCA ? CAVALOS_BRANCA : cavalos[coluna];
+    }
+
+    int punhos(int coluna) {
+        return coluna == BRANCA ? 0 : punhos[coluna];
+    }
+
+    /** A coluna obriga a mover o Khan. */
+    boolean khan(int coluna) {
+        return coluna == BRANCA || coluna == colunaKhan;
     }
 
     static Herdeiro porNome(String nome) {

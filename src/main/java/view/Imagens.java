@@ -12,7 +12,7 @@ import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 
-// Imagens de src/main/resources/imagens, guardadas por nome (por exemplo, "cartela-tolui").
+// Imagens de src/main/resources/imagens (no classpath, em /imagens), guardadas por nome (por exemplo, "cartela-tolui").
 class Imagens {
     private static final Map<String, BufferedImage> cache = new HashMap<>();
 
@@ -27,6 +27,34 @@ class Imagens {
 
     static BufferedImage peao(String herdeiro) {
         return ler("peao-" + herdeiro.toLowerCase(), 1);
+    }
+
+    // Peça de tributo: "yurt", "espada" ou "moeda" (cartoes6 do material do jogo).
+    static BufferedImage tributo(String tipo) {
+        return ler("tributo-" + tipo, 2);
+    }
+
+    // Peça de tesouro: "boi", "seda", "ferro", "pele" ou "especiaria" (cartoes7 do material do jogo).
+    static BufferedImage tesouro(String tipo) {
+        return ler("tesouro-" + tipo, 2);
+    }
+
+    // Peça de cidade com o nome da cidade (cartoes2 do material do jogo). O arquivo usa o nome sem acento.
+    static BufferedImage cidade(String nome) {
+        String arquivo = java.text.Normalizer.normalize(nome.toLowerCase(), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        return ler("cidade-" + arquivo, 2);
+    }
+
+    // Carta de conselheiro aberto (cartas1 a cartas3 do material do jogo). As imagens grandes são lidas com 1 a cada
+    // 4 pixels; as de cerca de 400 pixels, inteiras.
+    static BufferedImage carta(String id) {
+        return ler("carta-" + id, id.startsWith("cidades") ? 1 : 4);
+    }
+
+    // Peça de ativação do herdeiro, colocada sobre a coluna usada da cartela (cartoes4 do material do jogo).
+    static BufferedImage ativacao(String herdeiro) {
+        return ler("ativacao-" + herdeiro.toLowerCase(), 1);
     }
 
     // Cor de cada herdeiro, a mesma do símbolo do seu pião. Jochi usa um cinza alaranjado, que aparece melhor no tabuleiro.
