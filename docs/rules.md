@@ -204,6 +204,8 @@ If you take the last treasure of a city, you conquer it. Then:
 1. Show the next city piece from the pile. Put 4 random treasures on the new city. If the pile is empty, skip this step.
 2. Put one of your yurts in the center of the conquered city. This yurt does not help your movement. But it counts for the yurt majority of its region at the end of the game.
 
+If you have no yurt left, you cannot take the last treasure of a city. The rulebook does not say this; video 1 of the publisher does.
+
 ### 8.2 Build yurts
 
 - Each yurt tribute piece lets you build one yurt.
@@ -260,7 +262,7 @@ Pay 2 coins to buy an upgrade. You cannot use it in the turn that you buy it.
 | Upgrade | Quantity | Effect when you activate its column |
 |---|---|---|
 | virtual coin | 8 | Counts as 1 coin in this turn. You do not get a coin piece. |
-| virtual treasure | 1 of each treasure type (5) | Counts as 1 treasure of its type in this turn. You do not get a treasure piece. Use it for 1 delivery only, with at least 1 real treasure. Or use it for open counselor cards. |
+| virtual treasure | 1 of each treasure type (5) | Counts as 1 treasure of its type in this turn. You do not get a treasure piece. Use it for 1 delivery only. A delivery can use at most 1 virtual treasure: the rulebook says "one delivery with one treasure less". Or use it for open counselor cards. |
 | virtual sword | 8 | Counts as 1 sword in this turn. You do not get a sword piece. |
 | virtual yurt | 8 | Counts as 1 yurt tribute piece in this turn. You do not get a yurt tribute piece. |
 | fist | 6 | 1 extra action to take a tribute piece from the map. |
@@ -280,7 +282,7 @@ You get a bonus piece when you are the first player to give treasures to a couns
 | yurts | Get 2 yurt tribute pieces. |
 | horses and fist | Do 3 extra moves and 1 extra action to take a tribute piece. |
 | fists | Do 2 extra actions to take tribute pieces. |
-| chests | Take 3 random treasures from the treasure pile. Keep 1 and discard the others. |
+| chests | Take 3 random treasures from the treasure pile. Keep 1 and discard the others. The 2 discarded treasures leave the game (the rulebook uses "descarte" for the secret card too, which leaves the game). |
 
 ## 11. Heirs and special abilities (p. 6, p. 20)
 

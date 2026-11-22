@@ -23,6 +23,7 @@ import model.ObservadorIF;
 
 // Janela da cartela com as colunas (3ª iteração, Observer). Ela é um observador da partida:
 // abre sozinha quando começa o turno de um jogador, para ele escolher a coluna, e fecha quando a coluna é ativada.
+// Antes da primeira rodada, ela espera todos escolherem a carta secreta (regras, p. 6).
 // Ela lê a partida só por get (contrato em ObservadoIF): a coluna branca uma vez, e o resto em cada notify.
 @SuppressWarnings("serial")
 class JanelaCartela extends JDialog implements ObservadorIF {
@@ -38,6 +39,8 @@ class JanelaCartela extends JDialog implements ObservadorIF {
     private final int colunaReativacao;
     private String nome;               // herdeiro do jogador da vez
     private List<Integer> bloqueadas;  // colunas bloqueadas do jogador da vez
+    private List<List<String>> melhorias; // melhorias de cada coluna do jogador da vez
+    private int escolhendoSecreta;     // jogador que escolhe a carta secreta, ou -1
     private int ativada, selecionada;  // -1 quando não há
 
     JanelaCartela(JFrame dono) {
@@ -63,15 +66,18 @@ class JanelaCartela extends JDialog implements ObservadorIF {
         int atual = observado.get(JOGADOR_ATUAL);
         nome = observado.get(NOMES).get(atual);
         bloqueadas = observado.get(COLUNAS_BLOQUEADAS).get(atual);
+        melhorias = observado.get(MELHORIAS).get(atual);
+        escolhendoSecreta = observado.get(JOGADOR_ESCOLHENDO_SECRETA);
         ativada = observado.get(COLUNA_ATIVADA);
         selecionada = observado.get(COLUNA_SELECIONADA);
         Evento evento = observado.get(EVENTO);
-        if (evento == Evento.TURNO || evento == Evento.PARTIDA) abrir();
+        if (evento == Evento.TURNO || evento == Evento.PARTIDA || evento == Evento.SECRETA) abrir();
         else if (evento == Evento.COLUNA) setVisible(false);
         else atualizar();
     }
 
     void abrir() {
+        if (escolhendoSecreta != -1) return; // a cartela só abre depois que todos escolheram a carta secreta
         aviso = null;
         atualizar();
         setLocationRelativeTo(getOwner());
@@ -115,7 +121,7 @@ class JanelaCartela extends JDialog implements ObservadorIF {
             String titulo = ativada != -1 ? nome + " já ativou a coluna " + (ativada + 1)
                     : nome + ": clique numa coluna livre e confirme";
             Desenho.texto(g2, titulo, MARGEM, 30);
-            Desenho.cartela(g2, nome, bloqueadas, ativada, selecionada, MARGEM, TOPO, L, A);
+            Desenho.cartela(g2, nome, melhorias, bloqueadas, ativada, selecionada, MARGEM, TOPO, L, A);
 
             g2.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
             Desenho.texto(g2, "A coluna branca (" + (colunaReativacao + 1)

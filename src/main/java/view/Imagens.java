@@ -57,6 +57,27 @@ class Imagens {
         return ler("ativacao-" + herdeiro.toLowerCase(), 1);
     }
 
+    // As 5 cartas de conselheiro aberto que dependem de melhorias e de bônus não têm imagem no material que temos.
+    static boolean temCarta(String id) {
+        return Imagens.class.getResource("/imagens/carta-" + id + ".jpg") != null;
+    }
+
+    // Ícones de cavalo e de punho, recortados da área de ações da cartela, e de voto (a cadeira do Kurultai),
+    // recortado do tabuleiro, para desenhar as melhorias e as peças de bônus.
+    static BufferedImage icone(String nome) {
+        return ler("icone-" + nome, 1);
+    }
+
+    // Fundo de cada cor de melhoria e de coluna da cartela: vermelha, verde, amarela e branca.
+    static Color corMelhoria(String cor) {
+        return switch (cor) {
+            case "vermelha" -> new Color(226, 112, 88);
+            case "verde" -> new Color(134, 186, 92);
+            case "amarela" -> new Color(236, 204, 84);
+            default -> new Color(240, 236, 226);
+        };
+    }
+
     // Cor de cada herdeiro, a mesma do símbolo do seu pião. Jochi usa um cinza alaranjado, que aparece melhor no tabuleiro.
     static Color cor(String herdeiro) {
         return switch (herdeiro) {

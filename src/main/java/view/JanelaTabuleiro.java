@@ -12,6 +12,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,8 +58,13 @@ class JanelaTabuleiro extends JFrame {
     private final Controlador ctrl = Controlador.getInstance();
     private final Painel painel = new Painel();
     private final JButton proximo = new JButton("Próximo");
+    private final JButton salvar = new JButton("Salvar jogo"); // A2: só antes de o jogador da vez ativar a coluna
+    private final JButton habilidade = new JButton(); // Altani, Chagatai e Ogedei: a habilidade da cartela
+    private boolean modoMoeda; // Ogedei armou a habilidade: o próximo clique num tesouro paga 1 moeda (estado da janela)
     private final JanelaCartela cartela;
     private final JanelaCartas cartas;
+    private final JanelaSecretas secretas;
+    private final JanelaResultado resultado;
     private String aviso; // erro da última ação, desenhado no painel (sem caixas de diálogo); é estado da janela
 
     // Grupo 1 (dados fixos), lido uma vez depois de se inscrever. Os mapas guardam a ordem do tabuleiro.
@@ -72,14 +78,19 @@ class JanelaTabuleiro extends JFrame {
     private final List<List<String>> provinciasKhan;
     private final Map<String, int[]> pontosCidades;
     private final List<String> tiposTesouro;
+    private final List<int[]> retangulosMelhorias; // espaços 0 a 4 da área e, no índice pilhaMelhorias, a pilha
+    private final int pilhaMelhorias, custoMelhoria;
+    private final Map<String, int[]> pontosBonus;
 
     // Grupos 2 a 6, lidos em cada notify. As listas por jogador têm o jogador como índice.
     private List<String> nomes;
     private int atual;
     private List<Integer> moedas, espadas, pecasYurt, yurtsRestantes, votos;
     private List<Map<String, Integer>> tesouros;
-    private List<String> posicoes;
+    private List<List<String>> peoes;  // as paradas de cada pião de cada jogador (2 para a Altani)
+    private List<Integer> peoesAtivos;
     private List<Integer> bloqueadas; // do jogador da vez
+    private List<List<String>> melhoriasDaVez; // melhorias de cada coluna do jogador da vez
     private int colunaAtivada, colunaSelecionada, movimentos, punhos;
     private boolean khanPendente;
     private List<String> visitadas, destinos, provinciasAlcancaveis, cidadesAtacaveis, paradasParaYurt,
@@ -90,7 +101,14 @@ class JanelaTabuleiro extends JFrame {
     private Map<String, Integer> donosCidades, pecasProvincias;
     private int cidadesNaPilha, posicaoKhan, votosNoConselho, turnosRestantes;
     private boolean fimDisparado, partidaTerminada;
-    private List<Integer> vencedores;
+    private List<Integer> vencedores, totaisFinais;
+    private int escolhendoSecreta, melhoriasGratis, melhoriasNaPilha;
+    private List<String> areaMelhorias;       // null num espaço vazio
+    private List<Integer> espacosCompraveis;
+    private Map<String, String> bonusNosConselheiros;
+    private Map<String, Integer> virtuais;
+    private List<String> tesourosVirtuais, tesourosBau, bonusUsaveis, cidadesParaMoeda;
+    private boolean podeTrocarPeao, podeTrocarCavalo, podeTomarComMoeda;
 
     JanelaTabuleiro() {
         super("Herdeiros do Khan");
@@ -100,19 +118,22 @@ class JanelaTabuleiro extends JFrame {
         painel.setPreferredSize(new Dimension(TAB_L + PAINEL_L, TAB_A));
         painel.addMouseListener(new Clique());
 
+        habilidade.setBounds(TAB_L + 20, TAB_A - 196, PAINEL_L - 40, 32);
+        habilidade.addActionListener(new Habilidade());
+        habilidade.setVisible(false);
+        painel.add(habilidade);
         JButton verCartas = new JButton("Ver cartas e conselheiros");
-        verCartas.setBounds(TAB_L + 20, TAB_A - 210, PAINEL_L - 40, 36);
+        verCartas.setBounds(TAB_L + 20, TAB_A - 158, PAINEL_L - 40, 32);
         verCartas.addActionListener(new VerCartas());
         painel.add(verCartas);
         JButton verCartela = new JButton("Ver cartela");
-        verCartela.setBounds(TAB_L + 20, TAB_A - 160, PAINEL_L - 40, 36);
+        verCartela.setBounds(TAB_L + 20, TAB_A - 120, PAINEL_L - 40, 32);
         verCartela.addActionListener(new VerCartela());
         painel.add(verCartela);
-        proximo.setBounds(TAB_L + 20, TAB_A - 110, PAINEL_L - 40, 36);
+        proximo.setBounds(TAB_L + 20, TAB_A - 82, PAINEL_L - 40, 32);
         proximo.addActionListener(new Proximo());
         painel.add(proximo);
-        JButton salvar = new JButton("Salvar jogo");
-        salvar.setBounds(TAB_L + 20, TAB_A - 60, PAINEL_L - 40, 36);
+        salvar.setBounds(TAB_L + 20, TAB_A - 44, PAINEL_L - 40, 32);
         salvar.addActionListener(new Salvar());
         painel.add(salvar);
 
@@ -130,10 +151,27 @@ class JanelaTabuleiro extends JFrame {
         provinciasKhan = observado.get(PROVINCIAS_KHAN);
         pontosCidades = observado.get(PONTOS_CIDADES);
         tiposTesouro = observado.get(TIPOS_TESOURO);
+        retangulosMelhorias = observado.get(RETANGULOS_MELHORIAS);
+        pilhaMelhorias = observado.get(PILHA_MELHORIAS);
+        custoMelhoria = observado.get(CUSTO_MELHORIA);
+        pontosBonus = observado.get(PONTOS_BONUS);
         painel.notify(observado); // decisão A: a primeira leitura, logo depois de se inscrever
         setVisible(true);
         cartas = new JanelaCartas(this); // abre sozinha quando houver algo a mostrar
         cartela = new JanelaCartela(this); // abre por cima do tabuleiro para o primeiro jogador
+        secretas = new JanelaSecretas(this); // antes da primeira rodada: cada jogador escolhe a carta secreta
+        resultado = new JanelaResultado(this); // abre sozinha quando a partida termina
+    }
+
+    // Fecha o tabuleiro e as suas janelas (para uma nova partida). Antes, tira os 5 observadores da partida: sem
+    // isso, o aviso PARTIDA da partida nova abriria de novo a cartela e as outras janelas deste tabuleiro.
+    void fechar() {
+        ctrl.remove(painel);
+        ctrl.remove(cartela);
+        ctrl.remove(cartas);
+        ctrl.remove(secretas);
+        ctrl.remove(resultado);
+        dispose(); // fecha também as janelas que têm o tabuleiro como dono
     }
 
     private static int tela(int coordenada) {
@@ -148,7 +186,11 @@ class JanelaTabuleiro extends JFrame {
                 String[] tesouro = tesouroEm(e.getX(), e.getY());
                 if (javax.swing.SwingUtilities.isRightMouseButton(e))
                     aviso = ctrl.construirYurt((int) (e.getX() / ESCALA), (int) (e.getY() / ESCALA));
-                else if (tesouro != null) aviso = ctrl.atacarCidade(tesouro[0], tesouro[1]);
+                else if (tesouro != null && modoMoeda) {
+                    modoMoeda = false;
+                    aviso = ctrl.tomarTesouroComMoeda(tesouro[0], tesouro[1]);
+                    atualizarHabilidade();
+                } else if (tesouro != null) aviso = ctrl.atacarCidade(tesouro[0], tesouro[1]);
                 else aviso = ctrl.clicarTabuleiro((int) (e.getX() / ESCALA), (int) (e.getY() / ESCALA));
                 painel.repaint(); // só pelo aviso, que é estado da janela; as mudanças da partida chegam pelo notify
             } else if (Desenho.colunaEm(e.getX(), e.getY(), CARTELA_X, CARTELA_Y, CARTELA_L, CARTELA_A) != -1) {
@@ -175,6 +217,30 @@ class JanelaTabuleiro extends JFrame {
     private int[] posicaoTesouro(String cidade, int k, int n) {
         int[] c = pontosCidades.get(cidade);
         return new int[] {tela(c[0]) + (int) Math.round((k - (n - 1) / 2.0) * (TESOURO + 3)), tela(c[1]) + 24};
+    }
+
+    // O botão da habilidade só aparece quando o Model diz que ela pode ser usada agora: a Altani troca o pião antes de
+    // ativar a coluna; o Chagatai troca 1 movimento por 1 espada; o Ogedei arma o modo moeda e depois clica num
+    // tesouro.
+    private void atualizarHabilidade() {
+        String nome = nomes.get(atual);
+        if (!podeTomarComMoeda) modoMoeda = false;
+        if (podeTrocarPeao) habilidade.setText(nome + ": jogar com o pião " + (2 - peoesAtivos.get(atual)));
+        else if (podeTrocarCavalo) habilidade.setText(nome + ": trocar 1 cavalo por 1 espada");
+        else if (podeTomarComMoeda)
+            habilidade.setText(modoMoeda ? nome + ": clique num tesouro (ou cancele)" : nome + ": tomar tesouro com 1 moeda");
+        habilidade.setVisible(podeTrocarPeao || podeTrocarCavalo || podeTomarComMoeda);
+    }
+
+    private class Habilidade implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if (podeTrocarPeao) aviso = ctrl.trocarPeao();
+            else if (podeTrocarCavalo) aviso = ctrl.trocarCavaloPorEspada();
+            else if (podeTomarComMoeda) modoMoeda = !modoMoeda; // só muda a janela: os anéis dourados e o texto
+            atualizarHabilidade();
+            painel.repaint();
+        }
     }
 
     private class VerCartas implements ActionListener {
@@ -204,9 +270,11 @@ class JanelaTabuleiro extends JFrame {
     private class Salvar implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
-            JFileChooser escolha = new JFileChooser(".");
+            JFileChooser escolha = JanelaInicial.seletorTxt();
             if (escolha.showSaveDialog(JanelaTabuleiro.this) != JFileChooser.APPROVE_OPTION) return;
-            aviso = ctrl.salvar(escolha.getSelectedFile().toPath());
+            String nome = escolha.getSelectedFile().getPath();
+            if (!nome.toLowerCase().endsWith(".txt")) nome += ".txt"; // A4: o .txt entra se o usuário não digitar
+            aviso = ctrl.salvar(Path.of(nome));
             painel.repaint();
         }
     }
@@ -223,8 +291,10 @@ class JanelaTabuleiro extends JFrame {
             yurtsRestantes = observado.get(YURTS_RESTANTES);
             tesouros = observado.get(TESOUROS);
             votos = observado.get(VOTOS);
-            posicoes = observado.get(POSICOES);
+            peoes = observado.get(PEOES);
+            peoesAtivos = observado.get(PEOES_ATIVOS);
             bloqueadas = observado.get(COLUNAS_BLOQUEADAS).get(atual);
+            melhoriasDaVez = observado.get(MELHORIAS).get(atual);
             colunaAtivada = observado.get(COLUNA_ATIVADA);
             colunaSelecionada = observado.get(COLUNA_SELECIONADA);
             movimentos = observado.get(MOVIMENTOS);
@@ -248,8 +318,25 @@ class JanelaTabuleiro extends JFrame {
             turnosRestantes = observado.get(TURNOS_RESTANTES);
             partidaTerminada = observado.get(PARTIDA_TERMINADA);
             vencedores = observado.get(VENCEDORES);
+            totaisFinais = observado.get(TOTAIS_FINAIS);
+            escolhendoSecreta = observado.get(JOGADOR_ESCOLHENDO_SECRETA);
+            melhoriasGratis = observado.get(MELHORIAS_GRATIS);
+            melhoriasNaPilha = observado.get(MELHORIAS_NA_PILHA);
+            areaMelhorias = observado.get(AREA_MELHORIAS);
+            espacosCompraveis = observado.get(ESPACOS_COMPRAVEIS);
+            bonusNosConselheiros = observado.get(BONUS_NOS_CONSELHEIROS);
+            virtuais = observado.get(VIRTUAIS);
+            tesourosVirtuais = observado.get(TESOUROS_VIRTUAIS);
+            tesourosBau = observado.get(TESOUROS_BAU);
+            bonusUsaveis = observado.get(BONUS_USAVEIS);
+            cidadesParaMoeda = observado.get(CIDADES_PARA_MOEDA);
+            podeTrocarPeao = observado.get(PODE_TROCAR_PEAO);
+            podeTrocarCavalo = observado.get(PODE_TROCAR_CAVALO_POR_ESPADA);
+            podeTomarComMoeda = observado.get(PODE_TOMAR_TESOURO_COM_MOEDA);
             if (observado.get(EVENTO) != Evento.SELECAO) aviso = null;
             proximo.setEnabled(colunaAtivada != -1);
+            salvar.setEnabled(colunaAtivada == -1 && !partidaTerminada);
+            atualizarHabilidade();
             repaint();
         }
 
@@ -262,6 +349,8 @@ class JanelaTabuleiro extends JFrame {
             if (DEBUG) desenharMapa(g2);
             desenharProvincias(g2);
             desenharCidades(g2);
+            desenharMelhorias(g2);
+            desenharBonus(g2);
             desenharYurts(g2);
             desenharCaminho(g2);
             desenharKhan(g2);
@@ -288,7 +377,7 @@ class JanelaTabuleiro extends JFrame {
                 List<String> quem = new ArrayList<>();
                 for (int v : vencedores) quem.add(nomes.get(v));
                 String texto = "Fim de jogo! Vencedor" + (quem.size() > 1 ? "es" : "") + ": " + String.join(", ", quem)
-                        + " (" + votos.get(vencedores.get(0)) + " votos)";
+                        + " (" + totaisFinais.get(vencedores.get(0)) + " votos)";
                 g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 26));
                 int largura = g2.getFontMetrics().stringWidth(texto) + 40;
                 g2.setColor(new Color(0, 0, 0, 190));
@@ -339,6 +428,13 @@ class JanelaTabuleiro extends JFrame {
                     Desenho.yurt(g2, cx, cy, 34, Imagens.cor(nomes.get(dono)));
                     continue;
                 }
+                if (modoMoeda && cidadesParaMoeda.contains(cidade)) { // Ogedei pode tomar com moeda
+                    g2.setStroke(new BasicStroke(4, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f,
+                            new float[] {8f, 5f}, 0f));
+                    g2.setColor(new Color(255, 215, 0));
+                    g2.drawOval(cx - 54, cy - 48, 108, 108);
+                    g2.setStroke(new BasicStroke(1));
+                }
                 if (cidadesAtacaveis.contains(cidade)) {
                     g2.setStroke(new BasicStroke(4));
                     g2.setColor(new Color(230, 30, 30));
@@ -355,6 +451,48 @@ class JanelaTabuleiro extends JFrame {
                     Desenho.peca(g2, Imagens.tesouro(naCidade.get(k)), p[0], p[1], TESOURO, new Color(60, 40, 20));
                 }
             }
+        }
+
+        // Regras, p. 11: as 5 melhorias da área, na parte de baixo do tabuleiro, e a pilha virada para baixo logo acima
+        // dela. Clique numa melhoria ou na pilha para comprar. Borda dourada: o jogador da vez pode pegá-la agora
+        // (comprar com 2 moedas ou escolher a melhoria grátis da linha completa).
+        private void desenharMelhorias(Graphics2D g2) {
+            for (int i = 0; i < areaMelhorias.size(); i++) {
+                if (areaMelhorias.get(i) == null) continue;
+                int[] r = retangulosMelhorias.get(i);
+                Desenho.melhoria(g2, areaMelhorias.get(i), tela(r[0]), tela(r[1]), tela(r[2]) - 6, tela(r[3]) - 6);
+                if (espacosCompraveis.contains(i)) destacar(g2, r);
+            }
+            int[] r = retangulosMelhorias.get(pilhaMelhorias);
+            int n = melhoriasNaPilha;
+            if (n == 0) return;
+            int l = tela(r[2]) - 6, a = tela(r[3]) - 6, x = tela(r[0]) - l / 2, y = tela(r[1]) - a / 2;
+            for (int k = Math.min(n, 3) - 1; k >= 0; k--) { // peças viradas para baixo, empilhadas
+                g2.setColor(new Color(110, 70, 40));
+                g2.fillRoundRect(x + 2 * k, y - 2 * k, l, a, 6, 6);
+                g2.setColor(new Color(50, 30, 15));
+                g2.drawRoundRect(x + 2 * k, y - 2 * k, l, a, 6, 6);
+            }
+            g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+            Desenho.texto(g2, "Pilha (" + n + ")", x + 8, y + a / 2 + 4);
+            if (espacosCompraveis.contains(pilhaMelhorias)) destacar(g2, r);
+        }
+
+        // Regras, p. 4 e 13: a peça de bônus de cada conselheiro fica no seu espaço roxo até alguém entregar ali.
+        private void desenharBonus(Graphics2D g2) {
+            for (Map.Entry<String, String> e : bonusNosConselheiros.entrySet()) {
+                if (e.getValue() == null) continue;
+                int[] p = pontosBonus.get(e.getKey());
+                Desenho.bonus(g2, e.getValue(), tela(p[0]), tela(p[1]), 58, false);
+            }
+        }
+
+        private void destacar(Graphics2D g2, int[] r) {
+            int l = tela(r[2]), a = tela(r[3]);
+            g2.setStroke(new BasicStroke(3));
+            g2.setColor(new Color(255, 215, 0));
+            g2.drawRoundRect(tela(r[0]) - l / 2, tela(r[1]) - a / 2, l, a, 8, 8);
+            g2.setStroke(new BasicStroke(1));
         }
 
         // §7.2: as peças de tributo de cada província ficam sobre o seu ícone (até 3). Anel azul: dá para pegar agora.
@@ -417,13 +555,20 @@ class JanelaTabuleiro extends JFrame {
         }
 
         // RF09, G20: os piões de uma parada ficam lado a lado. Numa parada dupla, cada um fica num medalhão.
+        // A Altani tem 2 piões, numerados 1 e 2; o que não joga neste turno fica menor.
         private void desenharPioes(Graphics2D g2) {
-            Map<String, List<Integer>> porParada = new LinkedHashMap<>();
-            for (int i = 0; i < nomes.size(); i++)
-                porParada.computeIfAbsent(posicoes.get(i), k -> new ArrayList<>()).add(i);
-            for (Map.Entry<String, List<Integer>> p : porParada.entrySet()) {
+            Map<String, List<int[]>> porParada = new LinkedHashMap<>(); // {jogador, pião}
+            for (int i = 0; i < nomes.size(); i++) {
+                List<String> paradas = peoes.get(i);
+                for (int k = 0; k < paradas.size(); k++) {
+                    List<int[]> naParada = porParada.get(paradas.get(k));
+                    if (naParada == null) porParada.put(paradas.get(k), naParada = new ArrayList<>());
+                    naParada.add(new int[] {i, k});
+                }
+            }
+            for (Map.Entry<String, List<int[]>> p : porParada.entrySet()) {
                 int[] pontos = pontosParadas.get(p.getKey());
-                List<Integer> pioes = p.getValue();
+                List<int[]> pioes = p.getValue();
                 for (int k = 0; k < pioes.size(); k++) {
                     int x, y;
                     if (pontos.length == 4 && pioes.size() <= 2) {
@@ -433,7 +578,14 @@ class JanelaTabuleiro extends JFrame {
                         x = tela(pontos[0]) + (int) Math.round((k - (pioes.size() - 1) / 2.0) * (PEAO + 4));
                         y = tela(pontos[1]);
                     }
-                    peao(g2, pioes.get(k), x, y, PEAO);
+                    int jogador = pioes.get(k)[0], numero = pioes.get(k)[1];
+                    boolean dois = peoes.get(jogador).size() == 2;
+                    boolean ativo = !dois || numero == peoesAtivos.get(jogador);
+                    peao(g2, jogador, x, y, ativo ? PEAO : PEAO - 8);
+                    if (dois) {
+                        g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+                        Desenho.texto(g2, String.valueOf(numero + 1), x + PEAO / 2 - 6, y + PEAO / 2);
+                    }
                 }
             }
         }
@@ -453,23 +605,35 @@ class JanelaTabuleiro extends JFrame {
             Desenho.texto(g2, "Vez de " + nome, TAB_L + 15, 38);
             g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
             int coluna = colunaAtivada;
-            Desenho.texto(g2, coluna == -1 ? "Escolha uma coluna na cartela" : "Coluna " + (coluna + 1) + " ativada",
+            Desenho.texto(g2, escolhendoSecreta != -1 ? nomes.get(escolhendoSecreta) + " escolhe a carta secreta"
+                    : coluna == -1 ? "Escolha uma coluna na cartela" : "Coluna " + (coluna + 1) + " ativada",
                     TAB_L + 15, 64);
-            Desenho.cartela(g2, nome, bloqueadas, coluna, colunaSelecionada, CARTELA_X, CARTELA_Y, CARTELA_L, CARTELA_A);
+            Desenho.cartela(g2, nome, melhoriasDaVez, bloqueadas, coluna, colunaSelecionada, CARTELA_X, CARTELA_Y,
+                    CARTELA_L, CARTELA_A);
 
             int y = CARTELA_Y + CARTELA_A + 30;
+            List<String> linhas = new ArrayList<>();
             if (coluna != -1) {
-                Desenho.texto(g2, "Movimentos restantes: " + movimentos, TAB_L + 15, y);
-                Desenho.texto(g2, "Punhos: " + punhos + (punhos > 0 ? "  (anéis azuis)" : ""), TAB_L + 15, y + 24);
-                Desenho.texto(g2, "Khan: " + (khanPendente ? "mover (anéis laranja)" : "-"), TAB_L + 15, y + 48);
-                if (!cidadesAtacaveis.isEmpty())
-                    Desenho.texto(g2, "Ataque: clique num tesouro (anel vermelho)", TAB_L + 15, y + 72);
-                if (!paradasParaYurt.isEmpty())
-                    Desenho.texto(g2, "Yurt: botão direito (anel amarelo)", TAB_L + 15, y + 96);
+                linhas.add("Movimentos restantes: " + movimentos);
+                linhas.add("Punhos: " + punhos + (punhos > 0 ? "  (anéis azuis)" : ""));
+                linhas.add("Khan: " + (khanPendente ? "mover (anéis laranja)" : "-"));
+                String virtuaisDoTurno = virtuaisDoTurno();
+                if (!virtuaisDoTurno.isEmpty()) linhas.add("Virtuais: " + virtuaisDoTurno);
+                if (melhoriasGratis > 0) linhas.add("Linha completa! Escolha 1 melhoria grátis");
+                else if (!espacosCompraveis.isEmpty())
+                    linhas.add("Melhoria: clique na área (" + custoMelhoria + " moedas)");
+                if (!tesourosBau.isEmpty()) linhas.add("Baú aberto! Escolha 1 tesouro (cartas)");
+                else if (!bonusUsaveis.isEmpty()) linhas.add("Bônus: use em \"Ver cartas e conselheiros\"");
+                if (!cidadesAtacaveis.isEmpty()) linhas.add("Ataque: clique num tesouro (anel vermelho)");
+                if (!paradasParaYurt.isEmpty()) linhas.add("Yurt: botão direito (anel amarelo)");
+            }
+            for (String linha : linhas) {
+                Desenho.texto(g2, linha, TAB_L + 15, y);
+                y += 22;
             }
             if (aviso != null) {
                 g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
-                Desenho.aviso(g2, aviso, TAB_L + 10, y + 106, PAINEL_L - 20);
+                Desenho.aviso(g2, aviso, TAB_L + 10, y - 10, PAINEL_L - 20);
             }
 
             // Reserva de cada jogador: moedas, espadas e yurts (tributos) e, embaixo, os tesouros tomados.
@@ -498,6 +662,17 @@ class JanelaTabuleiro extends JFrame {
                 Desenho.texto(g2, "Fim disparado! Faltam " + turnosRestantes + " turno(s) depois deste.",
                         TAB_L + 15, TAB_A - 242);
             }
+        }
+
+        // Recursos virtuais do turno (regras, p. 16), por exemplo "1 moeda, 1 seda".
+        private String virtuaisDoTurno() {
+            List<String> partes = new ArrayList<>();
+            for (Map.Entry<String, Integer> t : virtuais.entrySet())
+                if (t.getValue() > 0) partes.add(t.getValue() + " " + t.getKey());
+            Map<String, Integer> porTesouro = new LinkedHashMap<>();
+            for (String t : tesourosVirtuais) porTesouro.put(t, porTesouro.getOrDefault(t, 0) + 1);
+            for (Map.Entry<String, Integer> t : porTesouro.entrySet()) partes.add(t.getValue() + " " + t.getKey());
+            return String.join(", ", partes);
         }
 
         // G21: cada parada com o seu id e a sua área de clique, e cada rota como uma linha.

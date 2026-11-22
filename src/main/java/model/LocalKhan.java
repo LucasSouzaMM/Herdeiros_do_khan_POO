@@ -28,6 +28,23 @@ class LocalKhan {
         return provincias;
     }
 
+    /**
+     * A província do Khan propriamente dita: das 3 que recebem tributo, a que tem o ícone mais perto da cabeça do
+     * Khan (a cabeça fica dentro dela; as setas apontam para as outras 2). Usada pela carta secreta do Bajulador.
+     */
+    Provincia getPropria() {
+        Provincia perto = null;
+        long menor = Long.MAX_VALUE;
+        for (Provincia p : provincias) {
+            long dx = p.getX() - x, dy = p.getY() - y, d = dx * dx + dy * dy;
+            if (d < menor) {
+                menor = d;
+                perto = p;
+            }
+        }
+        return perto;
+    }
+
     boolean contem(int px, int py) {
         long dx = px - x, dy = py - y;
         return dx * dx + dy * dy <= (long) RAIO * RAIO;

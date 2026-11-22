@@ -9,11 +9,13 @@ import java.util.Random;
 // a conquista.
 class Cidades {
     private final Mapa mapa;
+    private final Yurts yurts; // C2: conquistar põe um yurt no meio da cidade
     private final List<Cidade> pilha = new ArrayList<>(); // peças de cidade ainda não reveladas, na ordem em que saem
     private final List<Tesouro> saco = new ArrayList<>();  // peças de tesouro ainda não colocadas em cidades
 
-    Cidades(Mapa mapa) {
+    Cidades(Mapa mapa, Yurts yurts) {
         this.mapa = mapa;
+        this.yurts = yurts;
     }
 
     // §5: as 9 peças de cidade e as 40 de tesouro são embaralhadas; 3 cidades são reveladas com 4 tesouros cada.
@@ -52,6 +54,8 @@ class Cidades {
      * pião esteve neste turno. O 1º tesouro de uma cidade no turno custa 1 espada, e cada tesouro seguinte da
      * mesma cidade custa 2. Quem toma o último tesouro conquista a cidade, e a próxima cidade da pilha é
      * revelada. Retorna true se a cidade foi conquistada.
+     * C2 (vídeo 1): a conquista põe um yurt do jogador no meio da cidade, então quem já usou os seus 12 yurts não
+     * pode tomar o último tesouro.
      */
     boolean atacar(Jogador j, Turno turno, Cidade c, Tesouro t) {
         if (!c.isRevelada() || c.getDono() != null)
@@ -63,11 +67,14 @@ class Cidades {
         if (!adjacenteAoCaminho(c, turno))
             throw new IllegalArgumentException("Erro em Cidades.atacar: " + c.nome() + " não é adjacente a nenhuma"
                     + " parada onde " + j.getNome() + " esteve neste turno.");
+        if (!podeConquistar(j, c))
+            throw new IllegalStateException("Erro em Cidades.atacar: tomar o último tesouro conquista " + c.nome()
+                    + ", e " + j.getNome() + " já usou os seus " + Jogador.YURTS + " yurts.");
         int custo = custo(c, turno);
-        if (j.getTributos(Tributo.ESPADA) < custo)
+        if (turno.disponivel(Tributo.ESPADA) < custo)
             throw new IllegalStateException("Erro em Cidades.atacar: tomar este tesouro de " + c.nome() + " custa "
-                    + custo + " espada(s), e " + j.getNome() + " tem " + j.getTributos(Tributo.ESPADA) + ".");
-        j.gastar(Tributo.ESPADA, custo);
+                    + custo + " espada(s), e " + j.getNome() + " tem " + turno.disponivel(Tributo.ESPADA) + ".");
+        turno.pagar(Tributo.ESPADA, custo); // as espadas virtuais primeiro
         c.retirar(t);
         j.ganharTesouro(t);
         turno.registrarAtaque(c);
@@ -75,6 +82,11 @@ class Cidades {
         c.conquistar(j);
         revelarProxima();
         return true;
+    }
+
+    // Tomar o tesouro não conquista a cidade, ou o jogador ainda tem um yurt para pôr nela.
+    private boolean podeConquistar(Jogador j, Cidade c) {
+        return c.getTesouros().size() > 1 || yurts.restantes(j) > 0;
     }
 
     private static int custo(Cidade c, Turno turno) {
@@ -87,14 +99,17 @@ class Cidades {
         return false;
     }
 
-    /** Cidades que o jogador do turno pode atacar agora: reveladas, adjacentes ao caminho e com espadas suficientes. */
+    /**
+     * Cidades que o jogador do turno pode atacar agora: reveladas, adjacentes ao caminho, com espadas suficientes e,
+     * se só restar 1 tesouro, com um yurt para a conquista.
+     */
     List<Cidade> atacaveis(Turno turno) {
         List<Cidade> cidades = new ArrayList<>();
         if (turno == null) return cidades;
-        int espadas = turno.getJogador().getTributos(Tributo.ESPADA);
+        int espadas = turno.disponivel(Tributo.ESPADA); // reais e virtuais
         for (Cidade c : mapa.getCidades())
             if (c.isRevelada() && c.getDono() == null && !c.getTesouros().isEmpty() && adjacenteAoCaminho(c, turno)
-                    && espadas >= custo(c, turno))
+                    && espadas >= custo(c, turno) && podeConquistar(turno.getJogador(), c))
                 cidades.add(c);
         return cidades;
     }
@@ -110,6 +125,29 @@ class Cidades {
         for (Cidade c : mapa.getCidades())
             if (c.getDono() == j) n++;
         return n;
+    }
+
+    /** Tira até n tesouros do saco, os primeiros (o saco já está embaralhado). Usado pelo baú (peça de bônus). */
+    List<Tesouro> tirarDoSaco(int n) {
+        List<Tesouro> tirados = new ArrayList<>();
+        while (tirados.size() < n && !saco.isEmpty()) tirados.add(saco.remove(0));
+        return tirados;
+    }
+
+    List<Cidade> getPilha() {
+        return Collections.unmodifiableList(pilha);
+    }
+
+    List<Tesouro> getSaco() {
+        return Collections.unmodifiableList(saco);
+    }
+
+    // Ao carregar uma partida salva: a pilha de cidades e o saco de tesouros, na ordem gravada.
+    void restaurar(List<Cidade> pilha, List<Tesouro> saco) {
+        this.pilha.clear();
+        this.pilha.addAll(pilha);
+        this.saco.clear();
+        this.saco.addAll(saco);
     }
 
     /** Cidades ainda na pilha, sem revelar. */

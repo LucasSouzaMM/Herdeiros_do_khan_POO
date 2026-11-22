@@ -11,6 +11,7 @@ import java.awt.event.ActionListener;
 
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
@@ -53,11 +54,19 @@ public class JanelaInicial extends JFrame {
         }
     }
 
+    // A4: o nome e a pasta são livres; só o tipo (.txt) é predefinido, e "Todos os arquivos" continua na lista.
+    // Usado também para salvar (JanelaTabuleiro).
+    static JFileChooser seletorTxt() {
+        JFileChooser escolha = new JFileChooser(".");
+        escolha.setFileFilter(new FileNameExtensionFilter("Partida salva (*.txt)", "txt"));
+        return escolha;
+    }
+
     private class Continuar implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
             aviso = null;
-            JFileChooser escolha = new JFileChooser(".");
+            JFileChooser escolha = seletorTxt();
             if (escolha.showOpenDialog(JanelaInicial.this) != JFileChooser.APPROVE_OPTION) {
                 painel.repaint();
                 return;

@@ -1,6 +1,9 @@
 package controller;
 
 import static model.ObservadoIF.JOGADOR_ATUAL;
+import static model.ObservadoIF.JOGADOR_ESCOLHENDO_SECRETA;
+import static model.ObservadoIF.MELHORIAS_GRATIS;
+import static model.ObservadoIF.PEOES_ATIVOS;
 import static model.ObservadoIF.POSICOES;
 
 import java.io.IOException;
@@ -87,6 +90,16 @@ public class Controlador {
         return null;
     }
 
+    /** O jogador que está escolhendo fica com a carta secreta (uma das 2 que recebeu), antes da 1ª rodada. */
+    public String escolherCartaSecreta(String carta) {
+        try {
+            jogo.escolherCartaSecreta(jogo.get(JOGADOR_ESCOLHENDO_SECRETA), carta);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return erro(e);
+        }
+        return null;
+    }
+
     // ---------------------------------------------------------------- turno
 
     /** Clique numa coluna da cartela: marca ou desmarca a coluna, sem ativá-la. */
@@ -110,14 +123,17 @@ public class Controlador {
 
     /**
      * Clique no tabuleiro, em coordenadas da imagem original: numa parada, o pião anda (no próprio pião,
-     * constrói um yurt); numa cabeça do Khan, o Khan vai para lá; no ícone de uma província, o jogador pega
-     * 1 peça de tributo. Fora disso, nada acontece.
+     * constrói um yurt); numa cabeça do Khan (províncias ou área de melhorias), o Khan vai para lá; no ícone de uma
+     * província, o jogador pega 1 peça de tributo; numa melhoria da área ou na pilha, o jogador compra a melhoria
+     * (ou a escolhe como melhoria grátis). Fora disso, nada acontece.
      */
     public String clicarTabuleiro(int x, int y) {
         int atual = atual();
         String parada = jogo.paradaEm(x, y);
         int khan = parada == null ? jogo.localKhanEm(x, y) : -1;
         String provincia = parada == null && khan == -1 ? jogo.provinciaEm(x, y) : null;
+        int espaco = parada == null && khan == -1 && provincia == null ? jogo.espacoMelhoriaEm(x, y) : -1;
+        if (espaco != -1) return melhoria(espaco);
         try {
             if (parada != null && parada.equals(jogo.get(POSICOES).get(atual))) {
                 return construirYurt(x, y); // clique no próprio pião: constrói um yurt onde ele está
@@ -128,6 +144,19 @@ public class Controlador {
             } else if (provincia != null) {
                 jogo.pegarTributo(atual, provincia);
             }
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            String aviso = erro(e); // a mensagem completa vai para o terminal
+            return parada != null ? null : aviso; // B5 (2ª iteração): movimento inválido não mostra nada na tela
+        }
+        return null;
+    }
+
+    // Clique numa melhoria da área (espaço 0 a 4) ou na pilha: compra a melhoria com 2 moedas ou, se o jogador
+    // completou uma linha, a escolhe como melhoria grátis da coluna branca.
+    private String melhoria(int espaco) {
+        try {
+            if ((int) jogo.get(MELHORIAS_GRATIS) > 0) jogo.escolherMelhoriaGratis(atual(), espaco);
+            else jogo.comprarMelhoria(atual(), espaco);
         } catch (IllegalArgumentException | IllegalStateException e) {
             return erro(e);
         }
@@ -160,6 +189,59 @@ public class Controlador {
     public String entregarTesouros(String parada) {
         try {
             jogo.entregarTesouros(atual(), parada);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return erro(e);
+        }
+        return null;
+    }
+
+    /** Usa uma peça de bônus do jogador da vez. */
+    public String usarBonus(String peca) {
+        try {
+            jogo.usarBonus(atual(), peca);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return erro(e);
+        }
+        return null;
+    }
+
+    /** Fica com um dos tesouros do baú aberto. */
+    public String escolherTesouroBau(String tesouro) {
+        try {
+            jogo.escolherTesouroBau(atual(), tesouro);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return erro(e);
+        }
+        return null;
+    }
+
+    // ---------------------------------------------------------------- habilidades dos herdeiros
+
+    /** Altani: troca o pião que vai andar e agir neste turno (antes de ativar a coluna). */
+    public String trocarPeao() {
+        int atual = atual();
+        try {
+            jogo.selecionarPeao(atual, 1 - jogo.get(PEOES_ATIVOS).get(atual));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return erro(e);
+        }
+        return null;
+    }
+
+    /** Chagatai: troca 1 movimento por 1 espada. */
+    public String trocarCavaloPorEspada() {
+        try {
+            jogo.trocarCavaloPorEspada(atual());
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return erro(e);
+        }
+        return null;
+    }
+
+    /** Ogedei: paga 1 moeda para tomar o tesouro de uma cidade com 2 ou mais tesouros, de qualquer lugar. */
+    public String tomarTesouroComMoeda(String cidade, String tesouro) {
+        try {
+            jogo.tomarTesouroComMoeda(atual(), cidade, tesouro);
         } catch (IllegalArgumentException | IllegalStateException e) {
             return erro(e);
         }

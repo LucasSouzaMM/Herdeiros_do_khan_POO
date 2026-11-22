@@ -1,0 +1,11 @@
+Herdeiros do Khan - INF1636 Programacao Orientada a Objetos (PUC-Rio)
+
+Integrantes:
+  Joao Pedro Alves - 2311773
+  Eduardo Infante  - 2310826
+  Lucas Manoel     - 2320715
+
+Classe do main: app.Main (src/main/java/app/Main.java)
+
+Video:
+  https://drive.google.com/drive/folders/1W1IoFHaABouDsDPcsjkO-QlXG1l02fO5?usp=drive_link

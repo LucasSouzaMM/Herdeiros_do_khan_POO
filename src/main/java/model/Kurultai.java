@@ -15,6 +15,7 @@ class Kurultai {
 
     private final Yurts yurts;
     private final Cidades cidades;
+    private final PecasBonus bonus;
     private List<Jogador> jogadores = new ArrayList<>();
     private final List<CartaAberta> cartas = new ArrayList<>(); // as 4 cartas de conselheiro aberto, na ordem da mesa
     private final Map<CartaAberta, Jogador> donosCartas = new EnumMap<>(CartaAberta.class);
@@ -22,9 +23,10 @@ class Kurultai {
     private int turnosRestantes;  // depois de disparado o fim: turnos que ainda faltam
     private boolean terminada;
 
-    Kurultai(Yurts yurts, Cidades cidades) {
+    Kurultai(Yurts yurts, Cidades cidades, PecasBonus bonus) {
         this.yurts = yurts;
         this.cidades = cidades;
+        this.bonus = bonus;
     }
 
     /** Começo da partida: 4 cartas sorteadas e o fim ainda não disparado. */
@@ -51,36 +53,71 @@ class Kurultai {
     /**
      * Entrega ao conselheiro o conjunto de tesouros que ele pede e dá os votos dele ao jogador. O pião precisa ter
      * estado na parada neste turno. Pode-se entregar várias vezes ao mesmo conselheiro.
-     * As peças de bônus do primeiro a entregar vêm na 4ª iteração.
+     * O primeiro jogador a entregar ali leva a peça de bônus do conselheiro (regras, p. 13).
      */
     void entregar(Jogador j, Turno turno, Conselheiro c, int atual) {
         if (!turno.getVisitadas().contains(c.getParada()))
             throw new IllegalArgumentException("Erro em Kurultai.entregar: " + j.getNome() + " não esteve na parada "
                     + c.getParada().getId() + " neste turno.");
-        List<Tesouro> entrega = entrega(c, j);
+        Entrega entrega = entrega(c, j, turno);
         if (entrega == null)
             throw new IllegalStateException("Erro em Kurultai.entregar: " + j.getNome() + " não tem os tesouros que o"
-                    + " conselheiro de " + c.getParada().getId() + " pede (" + descreverPedido(c) + ").");
-        for (Tesouro t : entrega) j.gastarTesouro(t);
+                    + " conselheiro de " + c.getParada().getId() + " pede (" + descreverPedido(c) + ")."
+                    + " Cada entrega usa no máximo 1 tesouro virtual, junto com tesouros reais.");
+        for (Tesouro t : entrega.reais()) j.gastarTesouro(t);
+        for (Tesouro t : entrega.virtuais()) turno.usarTesouroVirtual(t);
         ganharVotos(j, c.getVotos(), atual);
+        if (bonus.receber(j, c) == Bonus.TRONO) ganharVotos(j, 1, atual); // o primeiro a entregar leva a peça de bônus
+    }
+
+    /** Tesouros de uma entrega: os que saem da reserva do jogador e os virtuais do turno (regras, p. 16). */
+    record Entrega(List<Tesouro> reais, List<Tesouro> virtuais) {
     }
 
     // Os tesouros que sairiam da reserva do jogador numa entrega ao conselheiro, ou null se ele não os tiver.
-    // No conselheiro que aceita 3 tesouros quaisquer, vão os que o jogador tem em maior quantidade.
     static List<Tesouro> entrega(Conselheiro c, Jogador j) {
+        Entrega e = entrega(c, j, null);
+        return e == null ? null : e.reais();
+    }
+
+    // A entrega ao conselheiro com os tesouros reais do jogador e os virtuais do turno, ou null se não der.
+    // No conselheiro que aceita 3 tesouros quaisquer, vão os que o jogador tem em maior quantidade.
+    // C1 (regras, p. 16: "uma única entrega com um tesouro a menos"): no máximo 1 tesouro virtual por entrega.
+    // Como toda entrega tem 2 ou 3 tesouros, sobra sempre pelo menos 1 real. O virtual é usado quando dá, porque
+    // some no fim do turno.
+    static Entrega entrega(Conselheiro c, Jogador j, Turno turno) {
+        Map<Tesouro, Integer> reais = new EnumMap<>(Tesouro.class);
+        for (Tesouro t : Tesouro.values()) reais.put(t, j.getTesouros(t));
+        for (Tesouro virtual : Tesouro.values()) {
+            if (turno == null || turno.getTesourosVirtuais(virtual) == 0) continue;
+            Map<Tesouro, Integer> comVirtual = new EnumMap<>(reais);
+            comVirtual.merge(virtual, 1, Integer::sum);
+            List<Tesouro> pedido = escolher(c, comVirtual);
+            if (pedido == null) continue;
+            if (!pedido.remove(virtual)) { // o conselheiro não pediu esse tipo
+                if (c.getPedido() != Conselheiro.QUAISQUER) continue;
+                pedido.remove(pedido.size() - 1); // 3 quaisquer: o virtual entra no lugar de um real
+            }
+            return new Entrega(pedido, List.of(virtual));
+        }
+        List<Tesouro> pedido = escolher(c, reais);
+        return pedido == null ? null : new Entrega(pedido, List.of());
+    }
+
+    // Os tesouros que o conselheiro pede, tirados das quantidades dadas, ou null se não houver o bastante.
+    private static List<Tesouro> escolher(Conselheiro c, Map<Tesouro, Integer> quantidades) {
         List<Tesouro> entrega = new ArrayList<>();
         if (c.getPedido() == Conselheiro.PAR) {
             Tesouro t = c.getTipos().get(0);
-            if (j.getTesouros(t) < 2) return null;
+            if (quantidades.get(t) < 2) return null;
             entrega.add(t);
             entrega.add(t);
         } else if (c.getPedido() == Conselheiro.TIPOS) {
             for (Tesouro t : c.getTipos())
-                if (j.getTesouros(t) == 0) return null;
+                if (quantidades.get(t) == 0) return null;
             entrega.addAll(c.getTipos());
         } else {
-            Map<Tesouro, Integer> resta = new EnumMap<>(Tesouro.class);
-            for (Tesouro t : Tesouro.values()) resta.put(t, j.getTesouros(t));
+            Map<Tesouro, Integer> resta = new EnumMap<>(quantidades);
             for (int i = 0; i < 3; i++) {
                 Tesouro maior = null;
                 for (Tesouro t : Tesouro.values())
@@ -106,7 +143,8 @@ class Kurultai {
         List<Conselheiro> possiveis = new ArrayList<>();
         if (turno == null) return possiveis;
         for (Conselheiro c : conselheiros)
-            if (turno.getVisitadas().contains(c.getParada()) && entrega(c, turno.getJogador()) != null) possiveis.add(c);
+            if (turno.getVisitadas().contains(c.getParada()) && entrega(c, turno.getJogador(), turno) != null)
+                possiveis.add(c);
         return possiveis;
     }
 
@@ -125,13 +163,13 @@ class Kurultai {
         return total;
     }
 
-    // O jogador da vez ganha 1 voto por carta ainda livre que ele cumprir agora.
-    // Retorna as cartas que ele ganhou, na ordem da mesa.
-    List<CartaAberta> verificarCartas(int atual) {
+    // O jogador da vez ganha 1 voto por carta ainda livre que ele cumprir agora. As espadas e os tesouros
+    // virtuais do turno também contam (regras, p. 16). Retorna as cartas que ele ganhou, na ordem da mesa.
+    List<CartaAberta> verificarCartas(int atual, Turno turno) {
         Jogador j = jogadores.get(atual);
         List<CartaAberta> ganhas = new ArrayList<>();
         for (CartaAberta c : cartas)
-            if (!donosCartas.containsKey(c) && cumpre(j, c)) {
+            if (!donosCartas.containsKey(c) && cumpre(j, turno, c)) {
                 donosCartas.put(c, j);
                 ganharVotos(j, 1, atual);
                 ganhas.add(c);
@@ -139,16 +177,20 @@ class Kurultai {
         return ganhas;
     }
 
-    private boolean cumpre(Jogador j, CartaAberta c) {
+    private boolean cumpre(Jogador j, Turno turno, CartaAberta c) {
         return switch (c) {
-            case ESPADAS4 -> j.getTributos(Tributo.ESPADA) >= 4;
+            case ESPADAS4 -> (turno == null ? j.getTributos(Tributo.ESPADA) : turno.disponivel(Tributo.ESPADA)) >= 4;
             case YURTS6 -> yurts.noMapa(j, null) >= 6;
             case YURTS10 -> yurts.noMapa(j, null) >= 10;
-            case TESOUROS4 -> j.getTotalTesouros() >= 4;
+            case TESOUROS4 -> {
+                int n = 0;
+                for (Tesouro t : Tesouro.values()) n += tesouros(j, turno, t);
+                yield n >= 4;
+            }
             case DIFERENTES5 -> {
                 int tipos = 0;
                 for (Tesouro t : Tesouro.values())
-                    if (j.getTesouros(t) > 0) tipos++;
+                    if (tesouros(j, turno, t) > 0) tipos++;
                 yield tipos == Tesouro.values().length;
             }
             case REGIOES1, REGIOES2 -> {
@@ -160,7 +202,25 @@ class Kurultai {
             }
             case CIDADES2 -> cidades.conquistadas(j) >= 2;
             case CIDADES3 -> cidades.conquistadas(j) >= 3;
+            case BONUS2 -> j.getBonus().size() >= 2; // as usadas também contam
+            case BONUS3 -> j.getBonus().size() >= 3;
+            case LINHA -> j.linhasCompletas() >= 1;
+            case COLUNAS2 -> colunasCom(j, 2) >= 2;
+            case COLUNA4 -> colunasCom(j, Jogador.MELHORIAS_POR_COLUNA) >= 1;
         };
+    }
+
+    // Colunas coloridas do jogador com pelo menos n melhorias (a coluna branca não conta).
+    private static int colunasCom(Jogador j, int n) {
+        int colunas = 0;
+        for (int c = 0; c < 3; c++)
+            if (j.getMelhorias(c).size() >= n) colunas++;
+        return colunas;
+    }
+
+    // Tesouros do tipo que contam para as cartas: os do jogador e os virtuais do turno.
+    private static int tesouros(Jogador j, Turno turno, Tesouro t) {
+        return j.getTesouros(t) + (turno == null ? 0 : turno.getTesourosVirtuais(t));
     }
 
     List<CartaAberta> getCartas() {
@@ -213,16 +273,15 @@ class Kurultai {
         return terminada;
     }
 
-    /**
-     * Jogadores com mais votos na trilha. Nesta iteração o vencedor sai só dos votos ganhos durante a partida;
-     * a influência nas regiões, as cartas secretas e o desempate vêm na 4ª iteração.
-     */
-    List<Integer> vencedores() {
-        int maior = -1;
-        for (Jogador j : jogadores) maior = Math.max(maior, j.getVotos());
-        List<Integer> vencedores = new ArrayList<>();
-        for (int i = 0; i < jogadores.size(); i++)
-            if (jogadores.get(i).getVotos() == maior) vencedores.add(i);
-        return vencedores;
+    // Ao carregar uma partida salva (os jogadores já foram dados em preparar).
+    void restaurar(List<CartaAberta> cartas, Map<CartaAberta, Jogador> donos, boolean fimDisparado, int turnosRestantes,
+            boolean terminada) {
+        this.cartas.clear();
+        this.cartas.addAll(cartas);
+        donosCartas.clear();
+        donosCartas.putAll(donos);
+        this.fimDisparado = fimDisparado;
+        this.turnosRestantes = turnosRestantes;
+        this.terminada = terminada;
     }
 }
